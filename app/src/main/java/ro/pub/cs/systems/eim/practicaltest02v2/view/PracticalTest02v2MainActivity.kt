@@ -1,80 +1,77 @@
-package ro.pub.cs.systems.eim.practicaltest02v2.view;
+package ro.pub.cs.systems.eim.practicaltest02v2.view
 
-import android.content.BroadcastReceiver;
-import android.content.Context;
-import android.content.Intent;
-import android.content.IntentFilter;
-import android.os.Bundle;
-import android.support.v4.content.LocalBroadcastManager;
-import android.support.v7.app.AppCompatActivity;
-import android.view.View;
-import android.widget.Button;
-import android.widget.EditText;
-import android.widget.TextView;
+import android.content.BroadcastReceiver
+import android.content.Context
+import android.content.Intent
+import android.content.IntentFilter
+import android.util.Log
+import android.os.Bundle
+import androidx.localbroadcastmanager.content.LocalBroadcastManager
+import androidx.appcompat.app.AppCompatActivity
+import android.view.View
+import android.widget.Button
+import android.widget.EditText
+import android.widget.TextView
+import ro.pub.cs.systems.eim.practicaltest02v2.R
+import ro.pub.cs.systems.eim.practicaltest02v2.network.DefinitionAsyncTask
 
-import ro.pub.cs.systems.eim.lab07.calculatorwebservice.R;
-import ro.pub.cs.systems.eim.practicaltest02v2.network.DefinitionAsyncTask;
+class PracticalTest02v2MainActivity : AppCompatActivity() {
 
-public class PracticalTest02v2MainActivity extends AppCompatActivity {
+    private lateinit var etWord: EditText
+    private lateinit var tvResult: TextView
+    private lateinit var btnFetch: Button
 
-    private EditText etWord;
-    private TextView tvResult;
-    private Button btnFetch;
+    private val getDefClickListener = GetDefClickListener()
 
-    private final GetDefClickListener getDefClickListener = new GetDefClickListener();
-
-    private final BroadcastReceiver definitionReceiver = new BroadcastReceiver() {
-        @Override
-        public void onReceive(Context context, Intent intent) {
-            if (DefinitionAsyncTask.ACTION_SEND_DEFINITION.equals(intent.getAction())) {
-                String definition = intent.getStringExtra(DefinitionAsyncTask.EXTRA_DEFINITION);
-                tvResult.setText(definition);
+    private val definitionReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context, intent: Intent) {
+            if (DefinitionAsyncTask.ACTION_SEND_DEFINITION == intent.action) {
+                val definition = intent.getStringExtra(DefinitionAsyncTask.EXTRA_DEFINITION)
+                Log.d("MainActivity", "Received definition: $definition")
+                tvResult.text = definition ?: "No definition received"
             }
-        }
-    };
-
-    private class GetDefClickListener implements View.OnClickListener {
-
-        @Override
-        public void onClick(View view) {
-            String word = etWord.getText().toString();
-            DefinitionAsyncTask definitionAsyncTask = new DefinitionAsyncTask(PracticalTest02v2MainActivity.this);
-            definitionAsyncTask.execute(word);
         }
     }
 
-    @Override
-    protected void onCreate(Bundle savedInstanceState) {
-        super.onCreate(savedInstanceState);
-        setContentView(R.layout.activity_practical_test02v2_main);
+    private inner class GetDefClickListener : View.OnClickListener {
+        override fun onClick(view: View) {
+            val word = etWord.text.toString()
+            val definitionAsyncTask = DefinitionAsyncTask(this@PracticalTest02v2MainActivity, object : DefinitionAsyncTask.DefinitionCallback {
+                override fun onDefinitionReceived(definition: String) {
+                    tvResult.text = definition
+                }
+            })
+            definitionAsyncTask.execute(word)
+        }
+    }
 
-        etWord = findViewById(R.id.etWord);
-        btnFetch = findViewById(R.id.btnFetch);
-        tvResult = findViewById(R.id.tvResult);
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        setContentView(R.layout.activity_practical_test02v2_main)
 
-        btnFetch.setOnClickListener(getDefClickListener);
+        etWord = findViewById(R.id.etWord)
+        btnFetch = findViewById(R.id.btnFetch)
+        tvResult = findViewById(R.id.tvResult)
 
-        Button button = findViewById(R.id.connServer);
+        btnFetch.setOnClickListener(getDefClickListener)
+
+        val button = findViewById<Button>(R.id.connServer)
 
         // Set a click listener to open the second activity
-        button.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                // Use an Intent to navigate to the second activity
-                Intent intent = new Intent(PracticalTest02v2MainActivity.this, PracticalTest02v2ServerActivity.class);
-                startActivity(intent);
-            }
-        });
+        button.setOnClickListener {
+            // Use an Intent to navigate to the second activity
+            val intent = Intent(this@PracticalTest02v2MainActivity, PracticalTest02v2ServerActivity::class.java)
+            startActivity(intent)
+        }
 
-        // Register the BroadcastReceiver
-        IntentFilter filter = new IntentFilter(DefinitionAsyncTask.ACTION_SEND_DEFINITION);
-        LocalBroadcastManager.getInstance(this).registerReceiver(definitionReceiver, filter);
+        // Register the BroadcastReceiver with proper flags for Android 13+
+        val filter = IntentFilter(DefinitionAsyncTask.ACTION_SEND_DEFINITION)
+        registerReceiver(definitionReceiver, filter, Context.RECEIVER_NOT_EXPORTED)
     }
 
-    @Override
-    protected void onDestroy() {
+    override fun onDestroy() {
         // Unregister the BroadcastReceiver
-        LocalBroadcastManager.getInstance(this).unregisterReceiver(definitionReceiver);
-        super.onDestroy();
+        unregisterReceiver(definitionReceiver)
+        super.onDestroy()
     }
 }

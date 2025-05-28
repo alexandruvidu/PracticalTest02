@@ -1,65 +1,65 @@
-package ro.pub.cs.systems.eim.practicaltest02v2.network;
+package ro.pub.cs.systems.eim.practicaltest02v2.network
 
-import android.content.Context;
-import android.content.Intent;
-import android.os.AsyncTask;
-import android.support.v4.content.LocalBroadcastManager;
-import android.util.Log;
+import android.content.Context
+import android.content.Intent
+import android.os.AsyncTask
+import android.util.Log
+import org.json.JSONArray
+import org.json.JSONException
+import org.json.JSONObject
+import java.io.IOException
+import cz.msebera.android.httpclient.client.ClientProtocolException
+import cz.msebera.android.httpclient.client.HttpClient
+import cz.msebera.android.httpclient.client.ResponseHandler
+import cz.msebera.android.httpclient.client.methods.HttpGet
+import cz.msebera.android.httpclient.impl.client.BasicResponseHandler
+import cz.msebera.android.httpclient.impl.client.DefaultHttpClient
 
-import org.json.JSONArray;
-import org.json.JSONException;
-import org.json.JSONObject;
+class DefinitionAsyncTask(private val context: Context, private val callback: DefinitionCallback?) : AsyncTask<String, Void, String>() {
 
-import java.io.IOException;
-
-import cz.msebera.android.httpclient.client.ClientProtocolException;
-import cz.msebera.android.httpclient.client.HttpClient;
-import cz.msebera.android.httpclient.client.ResponseHandler;
-import cz.msebera.android.httpclient.client.methods.HttpGet;
-import cz.msebera.android.httpclient.impl.client.BasicResponseHandler;
-import cz.msebera.android.httpclient.impl.client.DefaultHttpClient;
-
-public class DefinitionAsyncTask extends AsyncTask<String, Void, String> {
-
-    private Context context;
-
-    public static final String ACTION_SEND_DEFINITION = "ro.pub.cs.systems.eim.practicaltest02v2.SEND_DEFINITION";
-    public static final String EXTRA_DEFINITION = "definition";
-
-    public DefinitionAsyncTask(Context context) {
-        this.context = context;
+    interface DefinitionCallback {
+        fun onDefinitionReceived(definition: String)
     }
 
-    @Override
-    protected String doInBackground(String... params) {
-        HttpClient client = new DefaultHttpClient();
-        HttpGet httpGet = new HttpGet("https://api.dictionaryapi.dev/api/v2/entries/en/" + params[0].toLowerCase());
-        ResponseHandler<String> responseHandler = new BasicResponseHandler();
+    companion object {
+        const val ACTION_SEND_DEFINITION = "ro.pub.cs.systems.eim.practicaltest02v2.SEND_DEFINITION"
+        const val EXTRA_DEFINITION = "definition"
+    }
 
-        try {
-            JSONArray json = new JSONArray(client.execute(httpGet, responseHandler));
-            Log.i("PracticalTest", json.toString());
+    override fun doInBackground(vararg params: String): String {
+        val client: HttpClient = DefaultHttpClient()
+        val httpGet = HttpGet("https://api.dictionaryapi.dev/api/v2/entries/en/${params[0].lowercase()}")
+        val responseHandler: ResponseHandler<String> = BasicResponseHandler()
 
-            JSONObject firstEntry = json.getJSONObject(0);
-            JSONArray meanings = firstEntry.getJSONArray("meanings");
-            JSONObject firstMeaning = meanings.getJSONObject(0);
-            JSONArray definitions = firstMeaning.getJSONArray("definitions");
-            JSONObject firstDefinition = definitions.getJSONObject(0);
+        return try {
+            val json = JSONArray(client.execute(httpGet, responseHandler))
+            Log.i("PracticalTest", json.toString())
 
-            String definition = firstDefinition.getString("definition");
-            Log.i("PracticalTest", definition);
-            return definition;
-        } catch (IOException | JSONException e) {
-            Log.e("PracticalTest", "Error fetching definition", e);
-            return "Error fetching definition";
+            val firstEntry = json.getJSONObject(0)
+            val meanings = firstEntry.getJSONArray("meanings")
+            val firstMeaning = meanings.getJSONObject(0)
+            val definitions = firstMeaning.getJSONArray("definitions")
+            val firstDefinition = definitions.getJSONObject(0)
+
+            val definition = firstDefinition.getString("definition")
+            Log.i("PracticalTest", definition)
+            definition
+        } catch (e: IOException) {
+            Log.e("PracticalTest", "Error fetching definition", e)
+            "Error fetching definition"
+        } catch (e: JSONException) {
+            Log.e("PracticalTest", "Error fetching definition", e)
+            "Error fetching definition"
         }
     }
 
-    @Override
-    protected void onPostExecute(String result) {
-        // Send a broadcast with the definition
-        Intent intent = new Intent(ACTION_SEND_DEFINITION);
-        intent.putExtra(EXTRA_DEFINITION, result);
-        LocalBroadcastManager.getInstance(context).sendBroadcast(intent);
+    override fun onPostExecute(result: String) {
+        // Use callback if available, otherwise send broadcast
+        callback?.onDefinitionReceived(result) ?: run {
+            val intent = Intent(ACTION_SEND_DEFINITION)
+            intent.putExtra(EXTRA_DEFINITION, result)
+            Log.d("DefinitionAsyncTask", "Sending broadcast with result: $result")
+            context.sendBroadcast(intent)
+        }
     }
 }
